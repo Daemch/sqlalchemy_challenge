@@ -18,6 +18,9 @@ engine = create_engine("sqlite:///hawaii.sqlite")
 # reflect an existing database into a new model
 Base = automap_base()
 
+# engine = create_engine('sqlite:///your_database.db') 
+# Session = sessionmaker(bind=engine)
+
 # reflect the tables
 Base.prepare(autoload_with=engine)
 
@@ -40,40 +43,31 @@ app = Flask(__name__)
 #################################################
 
 
-# Sample data for demonstration purposes
-data = {
-    "precipitation": [
-        {"date": "2023-09-01", "prcp": 0.1},
-        {"date": "2023-09-02", "prcp": 0.2},
-        # Add more data as needed
-    ],
-    "stations": [
-        {"station": "STATION_1"},
-        {"station": "STATION_2"},
-        # Add more stations as needed
-    ],
-    "tobs": [
-        {"date": "2023-09-01", "tobs": 70},
-        {"date": "2023-09-02", "tobs": 72},
-        # Add more temperature observations as needed
-    ]
-}
-
 @app.route("/")
 def home():
     return (
         f"Available Routes:<br/>"
-        f"/api/v1.0/precipitation<br/>"
+        f"/api/v1.0/Precipitation Analysis<br/>"
         f"/api/v1.0/stations<br/>"
         f"/api/v1.0/tobs<br/>"
         f"/api/v1.0/<start><br/>"
         f"/api/v1.0/<start>/<end><br/>"
     )
 
-@app.route("/api/v1.0/precipitation")
+@app.route("/api/v1.0/Precipitation Analysis")
 def precipitation():
     # Convert query results to a dictionary
     precipitation_dict = {item["date"]: item["prcp"] for item in data["precipitation"]}
+    
+    # @app.route('/precipitation', methods=['GET'])
+# def get_precipitation():
+    # Query the database
+    #percip_values = session.query(Measurement.date, Measurement.prcp).order_by(Measurement.date.desc()).\
+       # filter(Measurement.date >= '2016-08-23').\
+        # filter(Measurement.date <= '2017-08-23').all()
+
+    # Convert the query results to a dictionary
+    percip_dict = {date: prcp for date, prcp in percip_values}
     return jsonify(precipitation_dict)
 
 @app.route("/api/v1.0/stations")
