@@ -14,15 +14,13 @@ from sqlalchemy import create_engine, func
 #################################################
 # Database Setup
 #################################################
-engine = create_engine("sqlite:///hawaii.sqlite")
+engine = create_engine("sqlite:///Resources/hawaii.sqlite")
 # reflect an existing database into a new model
 Base = automap_base()
 
-# engine = create_engine('sqlite:///your_database.db') 
-# Session = sessionmaker(bind=engine)
 
 # reflect the tables
-Base.prepare(autoload_with=engine)
+Base.prepare(engine, reflect=True)
 
 # Save references to each table
 Measurement = Base.classes.measurement
@@ -47,63 +45,76 @@ app = Flask(__name__)
 def home():
     return (
         f"Available Routes:<br/>"
-        f"/api/v1.0/Precipitation Analysis<br/>"
-        f"/api/v1.0/stations<br/>"
-        f"/api/v1.0/tobs<br/>"
-        f"/api/v1.0/<start><br/>"
-        f"/api/v1.0/<start>/<end><br/>"
+        f"/api/v1.0/Precipitation_Analysis<br/>"
+        f"/api/v1.0/Stations_List<br/>"
+        f"/api/v1.0/Most_Active_Station_TOBS<br/>"
+        f"/api/v1.0/Start_Date<br/>"
+        f"/api/v1.0/End_Date<br/>"
     )
 
-@app.route("/api/v1.0/Precipitation Analysis")
-def precipitation():
-    # Convert query results to a dictionary
-    precipitation_dict = {item["date"]: item["prcp"] for item in data["precipitation"]}
-    
-    # @app.route('/precipitation', methods=['GET'])
-# def get_precipitation():
+@app.route("/api/v1.0/Precipitation_Analysis", methods=['GET'])
+def get_Precipitation_Analysis():
     # Query the database
-    #percip_values = session.query(Measurement.date, Measurement.prcp).order_by(Measurement.date.desc()).\
-       # filter(Measurement.date >= '2016-08-23').\
-        # filter(Measurement.date <= '2017-08-23').all()
+    percip_values = session.query(Measurement.date, Measurement.prcp).order_by(Measurement.date.desc()).\
+        filter(Measurement.date >= '2016-08-23').\
+        filter(Measurement.date <= '2017-08-23').all()
 
     # Convert the query results to a dictionary
     percip_dict = {date: prcp for date, prcp in percip_values}
-    return jsonify(precipitation_dict)
+    return jsonify(percip_dict)
 
-@app.route("/api/v1.0/stations")
-def stations():
-    # Return a JSON list of stations
-    stations_list = [station["station"] for station in data["stations"]]
-    return jsonify(stations_list)
+@app.route("/api/v1.0/Stations_List", methods=['GET'])
+def get_Stations_List():
+    # Query the database
+    stations = session.query(Measurement.station, func.count(Measurement.station).label('count')).\
+        group_by(Measurement.station).order_by(func.count(Measurement.station).desc()).all()
 
-@app.route("/api/v1.0/tobs")
-def tobs():
-    # Return a JSON list of temperature observations for the previous year
-    tobs_list = [tob["tobs"] for tob in data["tobs"]]
-    return jsonify(tobs_list)
+    # Convert the query results to a dictionary
+    stations_dict = {station: count for station, count in stations}
+    return jsonify(stations_dict)
 
-@app.route("/api/v1.0/<start>")
-@app.route("/api/v1.0/<start>/<end>")
+@app.route("/api/v1.0/Most_Active_Station_TOBS", methods=['GET'])
+def get_Most_Active_Station_TOBS():
+    # Query the database to find the most active station
+    most_active_station = session.query(Measurement.station, func.count(Measurement.station).\
+        label('count')).group_by(Measurement.station).order_by(func.count(Measurement.station).desc()).first()[0]
+
+    # Query the temperature observations for the most active station
+    tobs_values = session.query(Measurement.date, Measurement.tobs).order_by(Measurement.date.desc()).\
+        filter(Measurement.date >= '2016-08-23').\
+        filter(Measurement.station == most_active_station).all()
+
+    # Convert the query results to a dictionary
+    tobs_dict = {date: tobs for date, tobs in tobs_values}
+    return jsonify(tobs_dict)
+
+@app.route("/api/v1.0/Start_Date")
+@app.route("/api/v1.0/End_Date")
 def temperature_range(start, end=None):
-    # Sample temperature data for demonstration
-    temperature_data = [
-        {"date": "2023-09-01", "tmin": 65, "tavg": 70, "tmax": 75},
-        {"date": "2023-09-02", "tmin": 66, "tavg": 71, "tmax": 76},
-        # Add more data as needed
-    ]
+    # Convert start and end to date objects
+    start_date = dt.datetime.strptime(start, "%Y-%m-%d").date()
+    end_date = dt.datetime.strptime(end, "%Y-%m-%d").date() if end else dt.date.today()
 
-    # Filter data based on start and end dates
-    filtered_data = [
-        temp for temp in temperature_data
-        if temp["date"] >= start and (end is None or temp["date"] <= end)
+    # Query the database for the date range
+    if end:
+        results = Measurement.query.filter(Measurement.date >= start_date, Measurement.date <= end_date).all()
+    else:
+        results = Measurement.query.filter(Measurement.date >= start_date).all()
+
+    # Convert results to a list of dictionaries
+    temperature_data = [
+        {"date": result.date, "tmin": result.tmin, "tavg": result.tavg, "tmax": result.tmax}
+        for result in results
     ]
 
     # Calculate TMIN, TAVG, and TMAX
-    tmin = min(temp["tmin"] for temp in filtered_data)
-    tavg = np.mean([temp["tavg"] for temp in filtered_data])
-    tmax = max(temp["tmax"] for temp in filtered_data)
+    tmin = min(temp["tmin"] for temp in temperature_data)
+    tavg = np.mean([temp["tavg"] for temp in temperature_data])
+    tmax = max(temp["tmax"] for temp in temperature_data)
 
     return jsonify({"TMIN": tmin, "TAVG": tavg, "TMAX": tmax})
 
 if __name__ == "__main__":
     app.run(debug=True)
+    
+    session.close()
